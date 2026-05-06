@@ -8,8 +8,9 @@
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ## Folder Structure / 폴더 구조
+## Folder Structure / 폴더 구조
 
-
+```text
 data/                                  # 데이터셋 전체 관리 폴더 / Main dataset folder
 ├─ raw/                                # 원본 데이터 저장 폴더 / Original raw data folder
 │  ├─ fire/                            # 수집한 화재 이미지 원본 저장 / Original fire images
@@ -29,6 +30,7 @@ data/                                  # 데이터셋 전체 관리 폴더 / Mai
 ├─ README.md                           # 데이터 폴더 사용 설명서 / Data folder guide
 ├─ dataset_sources.md                  # 데이터 출처 및 수집 기록 문서 / Dataset source and collection log
 └─ data.yaml                           # YOLO 학습 설정 파일 / YOLO dataset configuration file
+```
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
