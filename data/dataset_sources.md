@@ -43,7 +43,7 @@ Recording dataset sources clearly improves the reliability of the proposal and p
 
 | No. | Class | Source Name | URL or Location | Count | License / Usage | Collected By | Date | Note |
 |---|---|---|---|---:|---|---|---|---|
-| 1 | fire | Kaggle Fire Dataset | URL 입력 | 0 | 확인 필요 | 이름 입력 | 날짜 입력 |  |
+| 1 | | 1 | fire | Roboflow Fire Detection Dataset |[Google Drive 링크](https://drive.google.com/file/d/16TpFL_hi4NuG6FpvGyawHQIVDfG5bZG3/view?usp=drive_link) | 7900장 | | 윤지수 | 2026-05-07 | Full dataset stored in Google Drive |
 | 2 | fire | Roboflow Fire Dataset | URL 입력 | 0 | 확인 필요 | 이름 입력 | 날짜 입력 |  |
 | 3 | normal | Self-collected Background Images | 직접 촬영 | 0 | Team-owned | 이름 입력 | 날짜 입력 |  |
 | 4 | normal | Public Normal Background Images | URL 입력 | 0 | 확인 필요 | 이름 입력 | 날짜 입력 |  |
