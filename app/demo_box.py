@@ -17,6 +17,7 @@ from ultralytics import YOLO
 MODEL_PATH = "models/best.pt"
 OUTPUT_DIR = "results/demo_outputs"
 
+# OpenCV 창 제목은 한글이 깨질 수 있어서 영어로 설정
 WINDOW_NAME = "AI Fire Detection Safety System"
 
 CANVAS_WIDTH = 1280
@@ -32,9 +33,13 @@ PANEL_Y = 120
 PANEL_W = 340
 PANEL_H = 520
 
+# 영상에서는 confidence가 낮게 나올 수 있어서 낮게 설정
 CONF_THRESHOLD = 0.15
+
+# 모델 클래스명이 대소문자 또는 flame으로 되어 있을 가능성까지 고려
 DANGER_CLASSES = ["fire", "smoke", "Fire", "Smoke", "flame", "Flame"]
 
+# 한 번 감지되면 경고를 몇 초 동안 유지할지 설정
 WARNING_HOLD_SECONDS = 2.0
 
 
@@ -43,10 +48,13 @@ WARNING_HOLD_SECONDS = 2.0
 # =========================
 
 def get_korean_font(size=28):
+    """
+    Windows에서 한글 출력을 위한 폰트 설정
+    """
     font_candidates = [
-        "C:/Windows/Fonts/malgun.ttf",
-        "C:/Windows/Fonts/malgunbd.ttf",
-        "C:/Windows/Fonts/gulim.ttc",
+        "C:/Windows/Fonts/malgun.ttf",        # 맑은 고딕
+        "C:/Windows/Fonts/malgunbd.ttf",      # 맑은 고딕 Bold
+        "C:/Windows/Fonts/gulim.ttc",         # 굴림
     ]
 
     for font_path in font_candidates:
@@ -64,6 +72,9 @@ FONT_SMALL = get_korean_font(20)
 
 
 def draw_korean_text(image, text, position, font, color=(255, 255, 255)):
+    """
+    OpenCV 이미지 위에 한글 텍스트를 그리는 함수
+    """
     image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(image_pil)
     draw.text(position, text, font=font, fill=color)
@@ -71,10 +82,44 @@ def draw_korean_text(image, text, position, font, color=(255, 255, 255)):
 
 
 # =========================
+# 창 설정 함수
+# =========================
+
+def prepare_window():
+    """
+    OpenCV 창을 크기 조절 가능하게 설정
+    X 버튼 종료와 창 크기 조절을 위해 WINDOW_NORMAL 사용
+    """
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WINDOW_NAME, CANVAS_WIDTH, CANVAS_HEIGHT)
+
+
+def should_close_window():
+    """
+    ESC 키 또는 X 버튼 종료 확인
+    """
+    key = cv2.waitKey(1)
+
+    if key == 27:
+        return True
+
+    try:
+        if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
+            return True
+    except cv2.error:
+        return True
+
+    return False
+
+
+# =========================
 # 파일 선택
 # =========================
 
 def select_file():
+    """
+    이미지 또는 영상 파일 선택 창 열기
+    """
     root = Tk()
     root.withdraw()
 
@@ -95,6 +140,9 @@ def select_file():
 # =========================
 
 def resize_with_padding(image, target_w, target_h):
+    """
+    비율을 유지하면서 이미지/영상 프레임을 지정 영역에 맞추기
+    """
     h, w = image.shape[:2]
     scale = min(target_w / w, target_h / h)
 
@@ -119,9 +167,13 @@ def resize_with_padding(image, target_w, target_h):
 # =========================
 
 def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
+    """
+    시연용 한글 UI 화면 생성
+    """
     canvas = np.zeros((CANVAS_HEIGHT, CANVAS_WIDTH, 3), dtype=np.uint8)
     canvas[:] = (18, 24, 38)
 
+    # 상단 상태바
     if danger_detected:
         header_color = (0, 0, 180)
         header_text = "경고: 화재 위험 감지"
@@ -147,6 +199,7 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
         (255, 255, 255)
     )
 
+    # 영상 영역 테두리
     cv2.rectangle(
         canvas,
         (VIDEO_AREA_X - 4, VIDEO_AREA_Y - 4),
@@ -155,6 +208,7 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
         2
     )
 
+    # 영상/이미지 삽입
     display_frame = resize_with_padding(frame, VIDEO_AREA_W, VIDEO_AREA_H)
 
     canvas[
@@ -162,6 +216,7 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
         VIDEO_AREA_X:VIDEO_AREA_X + VIDEO_AREA_W
     ] = display_frame
 
+    # 오른쪽 정보 패널
     cv2.rectangle(
         canvas,
         (PANEL_X, PANEL_Y),
@@ -186,6 +241,7 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
         (255, 255, 255)
     )
 
+    # 상태 표시
     status_text = "위험" if danger_detected else "안전"
     status_color = (255, 80, 80) if danger_detected else (80, 255, 80)
 
@@ -244,7 +300,7 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
 
     canvas = draw_korean_text(
         canvas,
-        "ESC 키를 누르면 종료됩니다",
+        "ESC 키 또는 X 버튼을 누르면 종료됩니다",
         (PANEL_X + 25, PANEL_Y + PANEL_H - 45),
         FONT_SMALL,
         (180, 180, 180)
@@ -258,6 +314,9 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
 # =========================
 
 def run_detection_on_frame(model, frame):
+    """
+    한 프레임에 대해 YOLO 탐지 수행
+    """
     results = model.predict(
         source=frame,
         conf=CONF_THRESHOLD,
@@ -275,17 +334,21 @@ def run_detection_on_frame(model, frame):
         class_name = model.names[cls_id]
         conf = float(box.conf[0])
 
-        if class_name.lower() == "fire":
+        class_name_lower = class_name.lower()
+
+        if class_name_lower == "fire":
             display_name = "화재"
-        elif class_name.lower() == "smoke":
+        elif class_name_lower == "smoke":
             display_name = "연기"
+        elif class_name_lower == "flame":
+            display_name = "불꽃"
         else:
             display_name = class_name
 
         detected_texts.append(f"{display_name}: {conf:.2f}")
         max_conf = max(max_conf, conf)
 
-        if class_name in DANGER_CLASSES:
+        if class_name in DANGER_CLASSES or class_name_lower in ["fire", "smoke", "flame"]:
             danger_detected = True
 
     return annotated_frame, danger_detected, detected_texts, max_conf
@@ -323,8 +386,11 @@ def main():
     video_exts = [".mp4", ".avi", ".mov", ".mkv"]
 
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     last_warning_time = 0
+
+    # =========================
+    # 이미지 시연
+    # =========================
 
     if ext in image_exts:
         image = cv2.imread(str(source_path))
@@ -347,14 +413,21 @@ def main():
         cv2.imwrite(output_path, ui_frame)
 
         print(f"결과 이미지 저장 완료: {output_path}")
-        print("ESC 키를 누르면 창이 종료됩니다.")
+        print("ESC 키 또는 X 버튼을 누르면 창이 종료됩니다.")
+
+        prepare_window()
 
         while True:
             cv2.imshow(WINDOW_NAME, ui_frame)
-            if cv2.waitKey(1) == 27:
+
+            if should_close_window():
                 break
 
         cv2.destroyAllWindows()
+
+    # =========================
+    # 영상 시연
+    # =========================
 
     elif ext in video_exts:
         cap = cv2.VideoCapture(str(source_path))
@@ -364,6 +437,7 @@ def main():
             return
 
         video_fps = cap.get(cv2.CAP_PROP_FPS)
+
         if video_fps == 0:
             video_fps = 30
 
@@ -378,7 +452,9 @@ def main():
         )
 
         print("영상 시연을 시작합니다.")
-        print("ESC 키를 누르면 중단됩니다.")
+        print("ESC 키 또는 X 버튼을 누르면 중단됩니다.")
+
+        prepare_window()
 
         prev_time = time.time()
 
@@ -394,6 +470,7 @@ def main():
 
             annotated_frame, danger_detected_now, detected_texts, max_conf = run_detection_on_frame(model, frame)
 
+            # 한 번 감지되면 일정 시간 동안 경고 유지
             if danger_detected_now:
                 last_warning_time = time.time()
 
@@ -410,7 +487,7 @@ def main():
             out.write(ui_frame)
             cv2.imshow(WINDOW_NAME, ui_frame)
 
-            if cv2.waitKey(1) == 27:
+            if should_close_window():
                 break
 
         cap.release()
