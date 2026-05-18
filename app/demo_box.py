@@ -6,17 +6,19 @@ from datetime import datetime
 from tkinter import Tk, filedialog
 
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 from ultralytics import YOLO
 
 
 # =========================
-# Basic Settings
+# 기본 설정
 # =========================
 
 MODEL_PATH = "models/best.pt"
 OUTPUT_DIR = "results/demo_outputs"
 
-WINDOW_NAME = "AI Fire Detection Safety System"
+WINDOW_NAME = "AI 실시간 화재 감지 안전 시스템"
+
 CANVAS_WIDTH = 1280
 CANVAS_HEIGHT = 720
 
@@ -30,27 +32,57 @@ PANEL_Y = 120
 PANEL_W = 340
 PANEL_H = 520
 
-CONF_THRESHOLD = 0.5
-DANGER_CLASSES = ["fire", "smoke"]
+CONF_THRESHOLD = 0.15
+DANGER_CLASSES = ["fire", "smoke", "Fire", "Smoke", "flame", "Flame"]
+
+WARNING_HOLD_SECONDS = 2.0
 
 
 # =========================
-# Utility Functions
+# 한글 폰트 설정
+# =========================
+
+def get_korean_font(size=28):
+    font_candidates = [
+        "C:/Windows/Fonts/malgun.ttf",
+        "C:/Windows/Fonts/malgunbd.ttf",
+        "C:/Windows/Fonts/gulim.ttc",
+    ]
+
+    for font_path in font_candidates:
+        if os.path.exists(font_path):
+            return ImageFont.truetype(font_path, size)
+
+    return ImageFont.load_default()
+
+
+FONT_TITLE = get_korean_font(34)
+FONT_HEADER = get_korean_font(28)
+FONT_PANEL_TITLE = get_korean_font(30)
+FONT_NORMAL = get_korean_font(24)
+FONT_SMALL = get_korean_font(20)
+
+
+def draw_korean_text(image, text, position, font, color=(255, 255, 255)):
+    image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(image_pil)
+    draw.text(position, text, font=font, fill=color)
+    return cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+
+
+# =========================
+# 파일 선택
 # =========================
 
 def select_file():
-    """
-    Select image or video file using file dialog.
-    이미지 또는 영상 파일을 선택하는 함수
-    """
     root = Tk()
     root.withdraw()
 
     file_path = filedialog.askopenfilename(
-        title="Select fire image or video",
+        title="화재 이미지 또는 영상 파일 선택",
         filetypes=[
-            ("Image/Video files", "*.jpg *.jpeg *.png *.bmp *.mp4 *.avi *.mov *.mkv"),
-            ("All files", "*.*")
+            ("이미지/영상 파일", "*.jpg *.jpeg *.png *.bmp *.mp4 *.avi *.mov *.mkv"),
+            ("모든 파일", "*.*")
         ]
     )
 
@@ -58,11 +90,11 @@ def select_file():
     return file_path
 
 
+# =========================
+# 이미지 비율 유지 리사이즈
+# =========================
+
 def resize_with_padding(image, target_w, target_h):
-    """
-    Resize image while keeping aspect ratio and add padding.
-    비율을 유지하면서 이미지 크기를 맞추는 함수
-    """
     h, w = image.shape[:2]
     scale = min(target_w / w, target_h / h)
 
@@ -78,50 +110,43 @@ def resize_with_padding(image, target_w, target_h):
     y_offset = (target_h - new_h) // 2
 
     canvas[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
+
     return canvas
 
 
-def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
-    """
-    Draw demo UI.
-    시연용 화면 UI를 그리는 함수
-    """
-    canvas = np.zeros((CANVAS_HEIGHT, CANVAS_WIDTH, 3), dtype=np.uint8)
+# =========================
+# UI 화면 생성
+# =========================
 
-    # Background
+def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
+    canvas = np.zeros((CANVAS_HEIGHT, CANVAS_WIDTH, 3), dtype=np.uint8)
     canvas[:] = (18, 24, 38)
 
-    # Header
     if danger_detected:
         header_color = (0, 0, 180)
-        header_text = "WARNING: FIRE RISK DETECTED"
+        header_text = "경고: 화재 위험 감지"
     else:
         header_color = (0, 120, 0)
-        header_text = "STATUS: SAFE"
+        header_text = "상태: 안전"
 
     cv2.rectangle(canvas, (0, 0), (CANVAS_WIDTH, 90), header_color, -1)
 
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        "AI Fire Detection Safety System",
-        (40, 38),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.9,
-        (255, 255, 255),
-        2
+        "AI 실시간 화재 감지 안전 시스템",
+        (40, 15),
+        FONT_TITLE,
+        (255, 255, 255)
     )
 
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
         header_text,
-        (40, 72),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (255, 255, 255),
-        2
+        (40, 55),
+        FONT_HEADER,
+        (255, 255, 255)
     )
 
-    # Video area border
     cv2.rectangle(
         canvas,
         (VIDEO_AREA_X - 4, VIDEO_AREA_Y - 4),
@@ -130,14 +155,13 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
         2
     )
 
-    # Resize frame into video area
     display_frame = resize_with_padding(frame, VIDEO_AREA_W, VIDEO_AREA_H)
+
     canvas[
         VIDEO_AREA_Y:VIDEO_AREA_Y + VIDEO_AREA_H,
         VIDEO_AREA_X:VIDEO_AREA_X + VIDEO_AREA_W
     ] = display_frame
 
-    # Right panel
     cv2.rectangle(
         canvas,
         (PANEL_X, PANEL_Y),
@@ -154,106 +178,86 @@ def draw_ui(frame, danger_detected, detected_texts, max_conf, fps=0.0):
         2
     )
 
-    # Panel title
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        "Detection Info",
-        (PANEL_X + 25, PANEL_Y + 45),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (255, 255, 255),
-        2
+        "감지 정보",
+        (PANEL_X + 25, PANEL_Y + 25),
+        FONT_PANEL_TITLE,
+        (255, 255, 255)
     )
 
-    # Status
-    status_text = "DANGER" if danger_detected else "SAFE"
-    status_color = (0, 0, 255) if danger_detected else (0, 220, 0)
+    status_text = "위험" if danger_detected else "안전"
+    status_color = (255, 80, 80) if danger_detected else (80, 255, 80)
 
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        f"Status: {status_text}",
-        (PANEL_X + 25, PANEL_Y + 100),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.75,
-        status_color,
-        2
+        f"상태: {status_text}",
+        (PANEL_X + 25, PANEL_Y + 90),
+        FONT_NORMAL,
+        status_color
     )
 
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        f"Max Confidence: {max_conf:.2f}",
-        (PANEL_X + 25, PANEL_Y + 145),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (230, 230, 230),
-        2
+        f"최대 신뢰도: {max_conf:.2f}",
+        (PANEL_X + 25, PANEL_Y + 135),
+        FONT_SMALL,
+        (230, 230, 230)
     )
 
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        f"FPS: {fps:.1f}",
-        (PANEL_X + 25, PANEL_Y + 185),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (230, 230, 230),
-        2
+        f"처리 속도: {fps:.1f} FPS",
+        (PANEL_X + 25, PANEL_Y + 175),
+        FONT_SMALL,
+        (230, 230, 230)
     )
 
-    # Detected labels
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        "Detected:",
-        (PANEL_X + 25, PANEL_Y + 240),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (255, 255, 255),
-        2
+        "감지 항목:",
+        (PANEL_X + 25, PANEL_Y + 235),
+        FONT_SMALL,
+        (255, 255, 255)
     )
 
-    y = PANEL_Y + 280
+    y = PANEL_Y + 275
 
     if detected_texts:
         for text in detected_texts[:6]:
-            cv2.putText(
+            canvas = draw_korean_text(
                 canvas,
                 f"- {text}",
                 (PANEL_X + 25, y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (220, 220, 220),
-                1
+                FONT_SMALL,
+                (220, 220, 220)
             )
-            y += 35
+            y += 34
     else:
-        cv2.putText(
+        canvas = draw_korean_text(
             canvas,
-            "- None",
+            "- 감지 없음",
             (PANEL_X + 25, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (180, 180, 180),
-            1
+            FONT_SMALL,
+            (180, 180, 180)
         )
 
-    # Footer
-    cv2.putText(
+    canvas = draw_korean_text(
         canvas,
-        "Press ESC to exit",
-        (PANEL_X + 25, PANEL_Y + PANEL_H - 35),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (180, 180, 180),
-        1
+        "ESC 키를 누르면 종료됩니다",
+        (PANEL_X + 25, PANEL_Y + PANEL_H - 45),
+        FONT_SMALL,
+        (180, 180, 180)
     )
 
     return canvas
 
 
+# =========================
+# YOLO 탐지
+# =========================
+
 def run_detection_on_frame(model, frame):
-    """
-    Run YOLO detection on one frame.
-    한 프레임에 대해 YOLO 탐지를 수행하는 함수
-    """
     results = model.predict(
         source=frame,
         conf=CONF_THRESHOLD,
@@ -271,7 +275,14 @@ def run_detection_on_frame(model, frame):
         class_name = model.names[cls_id]
         conf = float(box.conf[0])
 
-        detected_texts.append(f"{class_name}: {conf:.2f}")
+        if class_name.lower() == "fire":
+            display_name = "화재"
+        elif class_name.lower() == "smoke":
+            display_name = "연기"
+        else:
+            display_name = class_name
+
+        detected_texts.append(f"{display_name}: {conf:.2f}")
         max_conf = max(max_conf, conf)
 
         if class_name in DANGER_CLASSES:
@@ -281,52 +292,62 @@ def run_detection_on_frame(model, frame):
 
 
 # =========================
-# Main Demo Logic
+# 메인 실행
 # =========================
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if not os.path.exists(MODEL_PATH):
-        print(f"Model file not found: {MODEL_PATH}")
-        print("Please place best.pt in the models folder.")
+        print(f"모델 파일을 찾을 수 없습니다: {MODEL_PATH}")
+        print("models 폴더 안에 best.pt 파일을 넣어주세요.")
         return
 
-    print("Loading model...")
+    print("모델을 불러오는 중입니다...")
     model = YOLO(MODEL_PATH)
+
+    print("모델 클래스:", model.names)
 
     source_path = select_file()
 
     if not source_path:
-        print("No file selected.")
+        print("선택된 파일이 없습니다.")
         return
 
     source_path = Path(source_path)
     ext = source_path.suffix.lower()
 
-    print(f"Selected file: {source_path}")
+    print(f"선택된 파일: {source_path}")
 
     image_exts = [".jpg", ".jpeg", ".png", ".bmp"]
     video_exts = [".mp4", ".avi", ".mov", ".mkv"]
 
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Image demo
+    last_warning_time = 0
+
     if ext in image_exts:
         image = cv2.imread(str(source_path))
 
         if image is None:
-            print("Cannot read image file.")
+            print("이미지 파일을 읽을 수 없습니다.")
             return
 
         annotated_frame, danger_detected, detected_texts, max_conf = run_detection_on_frame(model, image)
-        ui_frame = draw_ui(annotated_frame, danger_detected, detected_texts, max_conf)
+
+        ui_frame = draw_ui(
+            annotated_frame,
+            danger_detected,
+            detected_texts,
+            max_conf,
+            fps=0.0
+        )
 
         output_path = os.path.join(OUTPUT_DIR, f"image_demo_result_{now}.jpg")
         cv2.imwrite(output_path, ui_frame)
 
-        print(f"Result saved: {output_path}")
-        print("Press ESC to close the window.")
+        print(f"결과 이미지 저장 완료: {output_path}")
+        print("ESC 키를 누르면 창이 종료됩니다.")
 
         while True:
             cv2.imshow(WINDOW_NAME, ui_frame)
@@ -335,24 +356,29 @@ def main():
 
         cv2.destroyAllWindows()
 
-    # Video demo
     elif ext in video_exts:
         cap = cv2.VideoCapture(str(source_path))
 
         if not cap.isOpened():
-            print("Cannot open video file.")
+            print("영상 파일을 열 수 없습니다.")
             return
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps == 0:
-            fps = 30
+        video_fps = cap.get(cv2.CAP_PROP_FPS)
+        if video_fps == 0:
+            video_fps = 30
 
         output_path = os.path.join(OUTPUT_DIR, f"video_demo_result_{now}.mp4")
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (CANVAS_WIDTH, CANVAS_HEIGHT))
 
-        print("Video demo started.")
-        print("Press ESC to stop.")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(
+            output_path,
+            fourcc,
+            video_fps,
+            (CANVAS_WIDTH, CANVAS_HEIGHT)
+        )
+
+        print("영상 시연을 시작합니다.")
+        print("ESC 키를 누르면 중단됩니다.")
 
         prev_time = time.time()
 
@@ -366,8 +392,20 @@ def main():
             fps_now = 1 / (current_time - prev_time) if current_time != prev_time else 0
             prev_time = current_time
 
-            annotated_frame, danger_detected, detected_texts, max_conf = run_detection_on_frame(model, frame)
-            ui_frame = draw_ui(annotated_frame, danger_detected, detected_texts, max_conf, fps=fps_now)
+            annotated_frame, danger_detected_now, detected_texts, max_conf = run_detection_on_frame(model, frame)
+
+            if danger_detected_now:
+                last_warning_time = time.time()
+
+            danger_detected = (time.time() - last_warning_time) <= WARNING_HOLD_SECONDS
+
+            ui_frame = draw_ui(
+                annotated_frame,
+                danger_detected,
+                detected_texts,
+                max_conf,
+                fps=fps_now
+            )
 
             out.write(ui_frame)
             cv2.imshow(WINDOW_NAME, ui_frame)
@@ -379,11 +417,11 @@ def main():
         out.release()
         cv2.destroyAllWindows()
 
-        print(f"Result video saved: {output_path}")
+        print(f"결과 영상 저장 완료: {output_path}")
 
     else:
-        print("Unsupported file format.")
-        print("Please select an image or video file.")
+        print("지원하지 않는 파일 형식입니다.")
+        print("이미지 또는 영상 파일을 선택해주세요.")
 
 
 if __name__ == "__main__":
