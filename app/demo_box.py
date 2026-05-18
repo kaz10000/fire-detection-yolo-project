@@ -17,7 +17,7 @@ from ultralytics import YOLO
 MODEL_PATH = "models/best.pt"
 OUTPUT_DIR = "results/demo_outputs"
 
-WINDOW_NAME = "AI 실시간 화재 감지 안전 시스템"
+WINDOW_NAME = "AI Fire Detection Safety System"
 
 CANVAS_WIDTH = 1280
 CANVAS_HEIGHT = 720
