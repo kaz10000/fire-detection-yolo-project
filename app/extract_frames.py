@@ -2,7 +2,7 @@ import cv2
 import os
 
 # 입력 영상 경로
-video_path = ""
+video_path = "test_assets/drone_test.mp4"
 
 # 프레임 저장 폴더
 output_dir = "data/raw/drone_smoke_frames"
