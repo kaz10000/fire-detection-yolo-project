@@ -14,7 +14,7 @@ from ultralytics import YOLO
 # 기본 설정
 # =========================
 
-MODEL_PATH = "models/best.pt"
+MODEL_PATH = "models/team_best.pt"
 OUTPUT_DIR = "results/demo_outputs"
 
 # OpenCV 창 제목은 한글이 깨질 수 있어서 영어로 설정
