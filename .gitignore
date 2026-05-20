@@ -220,5 +220,3 @@ __marimo__/
 # Dataset
 data/processed/
 data/raw/
-
-models/*.pt
