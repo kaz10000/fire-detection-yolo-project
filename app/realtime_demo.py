@@ -1,60 +1,52 @@
-
 import cv2
 from ultralytics import YOLO
 from datetime import datetime
 import os
 
-# Load trained YOLO model
-# 학습된 YOLO 모델 불러오기
+# YOLO 모델 불러오기
 model = YOLO("models/best.pt")
 
-# Create results folder
 # 결과 저장 폴더 생성
 os.makedirs("results/screenshots", exist_ok=True)
 
-# Open webcam
 # 웹캠 열기
 cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
-    print("카메라를 열 수 없습니다. / Cannot open camera.")
+    print("카메라를 열 수 없습니다.")
     exit()
 
-print("Real-time fire detection started.")
-print("Press ESC to quit.")
+print("실시간 화재 감지 시작")
+print("ESC 키를 누르면 종료됩니다.")
 
 while True:
     ret, frame = cap.read()
 
     if not ret:
-        print("프레임을 읽을 수 없습니다. / Cannot read frame.")
+        print("프레임을 읽을 수 없습니다.")
         break
 
-    # Run prediction
-    # YOLO 예측 실행
+    # 화재 감지
     results = model.predict(
         source=frame,
-        conf=0.5,
+        conf=0.25,
         verbose=False
     )
 
-    # Draw detection results
-    # 탐지 결과 박스 그리기
+    # 결과 시각화
     annotated_frame = results[0].plot()
 
     fire_detected = False
 
+    # 탐지 결과 확인
     for box in results[0].boxes:
         cls_id = int(box.cls[0])
         class_name = model.names[cls_id]
 
-        # fire or smoke detection
-        # 화재 또는 연기 감지
         if class_name in ["fire", "smoke"]:
             fire_detected = True
 
-    # Warning UI
-    # 경고 화면 표시
+    # 경고 표시
     if fire_detected:
         cv2.rectangle(
             annotated_frame,
@@ -66,7 +58,7 @@ while True:
 
         cv2.putText(
             annotated_frame,
-            "WARNING: FIRE RISK DETECTED",
+            "WARNING: FIRE DETECTED",
             (30, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
@@ -74,16 +66,15 @@ while True:
             2
         )
 
-        # Save screenshot
-        # 위험 감지 화면 저장
+        # 스크린샷 저장
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        save_path = f"results/screenshots/fire_detected_{now}.jpg"
+        save_path = f"results/screenshots/fire_{now}.jpg"
         cv2.imwrite(save_path, annotated_frame)
 
+    # 화면 출력
     cv2.imshow("Real-Time Fire Detection", annotated_frame)
 
-    # ESC key to quit
-    # ESC 키를 누르면 종료
+    # ESC 종료
     if cv2.waitKey(1) == 27:
         break
 
